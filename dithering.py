@@ -11,11 +11,10 @@ import numpy as np
 def floyd_steinberg(image, n_bits=3):
     image = image.astype(np.float32)
     cols, rows, _ = image.shape
-    f_error_bias = np.array([[7, 3, 5, 1],
-                             [7, 3, 5, 1],
-                             [7, 3, 5, 1]], dtype=np.float32).T / 16
-    u = np.array([1, -1, 0, 1])
-    v = np.array([0, 1, 1, 1])
+
+    u = np.array([1, -1, 0, 1]) # error column indices
+    v = np.array([0,  1, 1, 1]) # error row indices
+    f_error_bias = np.array([[7, 7, 7,],[3, 3, 3,],[5, 5, 5,],[1, 1, 1,]]) / 16 # error diffusion coefficients
     f_levels = (1 << n_bits) - 1
 
     for x in range(cols):
