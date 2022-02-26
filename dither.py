@@ -1,66 +1,34 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Feb 25 15:12:44 2022
+
+@author: Christian Konstantinov
+"""
+
 from PIL import Image
 import numpy as np
 
-#%%
-# miku will help us out here
-image = Image.open('hatsune_miku.png')
-input_data = np.array(image)
-cols, rows = image.size
+def floyd_steinberg(image, n_bits=2):
+    image = image.astype(np.float32)
+    cols, rows, _ = image.shape
+    f_error_bias = np.array([[7, 3, 5, 1],
+                             [7, 3, 5, 1],
+                             [7, 3, 5, 1]], dtype=np.float32).T / 16
+    u = np.array([1, -1, 0, 1])
+    v = np.array([0, 1, 1, 1])
+    f_levels = (1 << n_bits) - 1
 
-#%%
-color_reduced_image = image.convert('P', palette=Image.WEB, dither=Image.NONE).convert('RGB')
-reduced_color_data = np.array(color_reduced_image)
-color_reduced_image.save('color_reduced.png')
+    for x in range(cols):
+        for y in range(rows):
+            quantized_pixel = np.round(image[x, y] / 255. * f_levels) / f_levels * 255.
+            error = image[x, y].astype(np.float32) - quantized_pixel.astype(np.float32)
+            image[x, y] = quantized_pixel
+            image[np.clip(x + u, 0, cols-1), np.clip(y + v, 0, rows-1)] += np.clip(error * f_error_bias, 0, 255)
+    return np.clip(image, 0, 255).astype(np.uint8)
 
-#%%
-error_data = np.subtract(input_data, reduced_color_data, dtype=np.float32)
-#%%
-# error diffusion indices
-u = np.array([0,  1, 1, 1])
-v = np.array([1, -1, 0, 1])
-w = np.array([0,  1, 2, 3])
-#%%
-# error diffusion ratios
-d = np.array([[[[7, 3, 5, 1]]]]) / 16
-distribution = d * np.reshape([error_data, error_data,
-                                     error_data, error_data],
-                                   (*error_data.shape, 4))
-
-#%%
-new_image = reduced_color_data.astype(np.float32)
-for x in range(0, cols - 1):
-    for y in range(0, rows - 1):
-        new_image[y + u, x + v] += distribution[y, x, :, w]
-
-#%%
-ouput_data = np.clip(new_image, 0, 255).astype(np.uint8)
-dithered_image = Image.fromarray(ouput_data)
-dithered_image.save('dithered.png')
-
-#%%
-dithering = image.convert('P', palette=Image.WEB)
-
-#%%
-def floyd_steinberg(image):
-    image = image.copy()
-    distribution = np.array([7, 3, 5, 1], dtype=float) / 16
-    u = np.array([0, 1, 1, 1])
-    v = np.array([1, -1, 0, 1])
-
-    for y in range(image.shape[0] - 1):
-        for x in range(image.shape[1] - 1):
-            value = np.round(image[y, x] / 255.)
-            error = image[y, x] - value
-            image[y, x] = value
-            image[y + u, x + v] += np.round(error * distribution).astype(np.uint8)
-
-    image[:, -1] = 1
-    image[-1, :] = 1
-    return image
-
-im = Image.open('smile.bmp')
-indata = np.array(im)[:, :, 0]
-x = floyd_steinberg(indata) - 1
-#%%
-ximg = Image.fromarray(x)
-ximg.save('test.png')
+if __name__ == '__main__':
+    image = Image.open('images/hatsune_miku.png')
+    input_data = np.array(image)
+    output_data = floyd_steinberg(input_data)
+    dithered_image = Image.fromarray(output_data)
+    dithered_image.save('images/miku_dithered.png')
