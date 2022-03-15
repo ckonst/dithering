@@ -5,10 +5,13 @@ Created on Fri Feb 25 15:12:44 2022
 @author: Christian Konstantinov
 """
 
+# TODO: add alpha channel and single color channel support
+# TODO: Maybe flatten arrays for use w/ Numba?
+
 from PIL import Image
 import numpy as np
 
-def floyd_steinberg(image, n_bits=3):
+def floyd_steinberg(image, n_bits=1):
     image = image.astype(np.float32)
     cols, rows, _ = image.shape
 
@@ -29,8 +32,8 @@ def floyd_steinberg(image, n_bits=3):
     return np.clip(image, 0, 255).astype(np.uint8)
 
 if __name__ == '__main__':
-    image = Image.open('images/smile.png')
+    image = Image.open('images/キャンディーポット.png')
     input_data = np.array(image)
     output_data = floyd_steinberg(input_data)
     dithered_image = Image.fromarray(output_data)
-    dithered_image.save('images/smile_dithered.png')
+    dithered_image.save('images/キャンディーポット_dithered_1_bit.png')
