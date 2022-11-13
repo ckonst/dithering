@@ -8,17 +8,15 @@ Created on Fri Feb 25 15:12:44 2022
 # TODO: add alpha channel support ?
 # TODO: Serpentine diffusion ?
 
-from functools import wraps
 from enum import Enum
-from typing import Tuple
 
 import numpy as np
-from numba import njit, prange
+from numba import njit, cfunc
 from PIL import Image
 
 
 class DiffusionMatrix(Enum):
-    """Matrices/Kernels for Error Diffusion
+    """Matrices/Kernels for Error Diffusion, the T property holds the transpose of each matrix.
 
     Args:
         Enum (Tuple[Tuple[Number]]): Tuple of (x indices, y indices, coefficients)
@@ -73,29 +71,54 @@ class DiffusionMatrix(Enum):
         (2 / 4, 1 / 4, 1 / 4)
     )
 
-
-def transpose(xs, ys, matrix):
-    return ys, xs, matrix
-
-
-# Set a field that points to the Transpose Matrices
-setattr(
-    DiffusionMatrix, 'T', Enum('TransposeDiffusionMatrix', {
-        m.name: transpose(*m.value) for m in DiffusionMatrix
-    })
-)
+    @property
+    def T(self):
+        xs, ys, coefficients = self.value
+        return ys, xs, coefficients
 
 
-def _quantize_uniform(image, bit_depth):
-    palette_size = (1 << bit_depth) - 1
-    return np.round(image / 255. * palette_size) / palette_size * 255.
+def atkinson(image, bit_depth):
+    return dither(image, bit_depth, DiffusionMatrix.ATKINSON.value)
+
+
+def burkes(image, bit_depth):
+    return dither(image, bit_depth, DiffusionMatrix.BURKES.value)
 
 
 def floyd_steinberg(image, bit_depth):
-    return dither(image, bit_depth, *DiffusionMatrix.FLOYD_STEINBERG.value)
+    return dither(image, bit_depth, DiffusionMatrix.FLOYD_STEINBERG.value)
 
 
-@ njit
+def false_floyd_steinberg(image, bit_depth):
+    return dither(image, bit_depth, DiffusionMatrix.FALSE_FLOYD_STEINBERG.value)
+
+
+def jarvis_judice_ninke(image, bit_depth):
+    return dither(image, bit_depth, DiffusionMatrix.JARVIS_JUDICE_NINKE.value)
+
+
+def stucki(image, bit_depth):
+    return dither(image, bit_depth, DiffusionMatrix.STUCKI.value)
+
+
+def sierra(image, bit_depth):
+    return dither(image, bit_depth, DiffusionMatrix.SIERRA.value)
+
+
+def two_row_sierra(image, bit_depth):
+    return dither(image, bit_depth, DiffusionMatrix.TWO_ROW_SIERRA.value)
+
+
+def sierra_lite(image, bit_depth):
+    return dither(image, bit_depth, DiffusionMatrix.SIERRA_LITE.value)
+
+
+@cfunc('float64(float64, int64)')
+def quantize_uniform(color, palette_size):
+    return round(color / 255.0 * palette_size) / palette_size * 255.0
+
+
+@njit
 def dither(image, bit_depth, matrix):
     height, width, channels = image.shape
     palette_size = (1 << bit_depth) - 1
@@ -103,35 +126,10 @@ def dither(image, bit_depth, matrix):
         for x in range(width):
             for c in range(channels):
                 color = image[y, x, c]
-                quant_color = round(
-                    color / 255. * palette_size) / palette_size * 255.
+                quant_color = quantize_uniform(color, palette_size)
                 image[y, x, c] = quant_color
                 quant_error = color - quant_color
                 for u, v, k in zip(*matrix):
                     if 0 <= x + u < width and 0 <= y + v < height:
                         image[y + v, x + u, c] += quant_error * k
     return image
-
-
-# TODO: move to unit test
-def _verify(image, bit_depth, num_channels=3) -> bool:
-    palette_size = 1
-    for i in range(num_channels):
-        palette_size *= np.unique(image[:, :, i]).shape[0]
-    expected_palette_size = (1 << bit_depth) ** num_channels
-    return palette_size <= expected_palette_size
-
-
-# TODO: Move to another file
-if __name__ == '__main__':
-    input_path = 'images/hatsune_miku.png'
-    output_path = 'images/hatsune_miku_dithered_2_bits.png'
-    image = Image.open(input_path)
-    print(f'Loaded image with {input_path = }')
-    input_data = np.array(image).astype(np.float32)
-    bit_depth = 2
-    output_data = floyd_steinberg(input_data, bit_depth).astype(np.uint8)
-    dithered_image = Image.fromarray(output_data)
-    assert _verify(output_data, bit_depth)
-    dithered_image.save(output_path)
-    print(f'Saved image with {output_path = }')
