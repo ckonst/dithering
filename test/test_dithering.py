@@ -3,7 +3,13 @@ import unittest
 import numpy as np
 from PIL import Image
 
-from dithering import floyd_steinberg
+from dithering import (
+    DiffusionMatrix, 
+    floyd_steinberg, 
+    jarvis_judice_ninke,
+    sierra
+)
+
 
 class TestDithering(unittest.TestCase):
 
@@ -39,7 +45,8 @@ class TestDithering(unittest.TestCase):
         output_path = './images/hatsune_miku_dithered_2_bits.png'
         image = self.load_image(input_path)
         bit_depth = 2
-        output_data = self.get_dithered_image(image, bit_depth, floyd_steinberg)
+        output_data = self.get_dithered_image(
+            image, bit_depth, floyd_steinberg)
         self.assertTrue(self.verify_palette_size(output_data, bit_depth))
 
     def test_visual(self):
@@ -64,8 +71,18 @@ class TestDithering(unittest.TestCase):
         input_path = './images/キャンディーポット.png'
         output_path = './images/キャンディーポット_dithered_1_bit.png'
         image = self.load_image(input_path)
-        dithered_image = self.get_dithered_image(image, 1, floyd_steinberg)
+        dithered_image = self.get_dithered_image(image, 1, sierra)
         self.save_image(Image.fromarray(dithered_image), output_path)
+
+    def test_hysteresis_generation(self):
+        FLOYD_STEINBERG_HYSTERESIS = (
+            (-1, 0, 0.4375),
+            (1, -1, 0.1875),
+            (0, -1, 0.3125),
+            (-1, -1, 0.0625)
+        )
+        self.assertEquals(DiffusionMatrix.FLOYD_STEINBERG.hysteresis, FLOYD_STEINBERG_HYSTERESIS)
+
 
 if __name__ == '__main__':
     unittest.main()

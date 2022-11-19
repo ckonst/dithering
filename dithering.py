@@ -5,9 +5,11 @@ Created on Fri Feb 25 15:12:44 2022
 @author: Christian Konstantinov
 """
 
-# TODO: add alpha channel support ?
-# TODO: Serpentine diffusion ?
+# TODO: Add alpha channel support
+# TODO: Add serpentine diffusion
+# TODO: Add Gamma Correction
 
+from functools import lru_cache
 from enum import Enum
 
 import numpy as np
@@ -23,58 +25,96 @@ class DiffusionMatrix(Enum):
     """
 
     ATKINSON = (
-        (1, 2, -1, 0, 1, 0),
-        (0, 0,  1, 1, 1, 2),
-        (1 / 8, 1 / 8, 1 / 8, 1 / 8, 1 / 8, 1 / 8)
+        (1, 0, 0.125),
+        (2, 0, 0.125),
+        (-1, 1, 0.125),
+        (0, 1, 0.125),
+        (1, 1, 0.125),
+        (0, 2, 0.125)
     )
     BURKES = (
-        (1, 2, -2, -1, 0, 1, 2),
-        (0, 0,  1,  1, 1, 1, 1),
-        (8 / 32, 4 / 32, 2 / 32, 4 / 32, 8 / 32, 4 / 32, 2 / 32)
+        (1, 0, 0.25),
+        (2, 0, 0.125),
+        (-2, 1, 0.0625),
+        (-1, 1, 0.125),
+        (0, 1, 0.25),
+        (1, 1, 0.125),
+        (2, 1, 0.0625)
     )
     FLOYD_STEINBERG = (
-        (1, -1, 0, 1),
-        (0,  1, 1, 1),
-        (7 / 16, 3 / 16, 5 / 16, 1 / 16)
+        (1, 0, 0.4375),
+        (-1, 1, 0.1875),
+        (0, 1, 0.3125),
+        (1, 1, 0.0625)
     )
     FALSE_FLOYD_STEINBERG = (
-        (1, 0, 1),
-        (0, 1, 1),
-        (3 / 8, 3 / 8, 2 / 8)
+        (1, 0, 0.375),
+        (0, 1, 0.375),
+        (1, 1, 0.25)
     )
     JARVIS_JUDICE_NINKE = (
-        (1, 2, -2, -1, 0, 1, 2, -2, -1, 0, 1, 2),
-        (0, 0,  1,  1, 1, 1, 1,  2,  2, 2, 2, 2),
-        (7 / 48, 5 / 48, 3 / 48, 5 / 48, 7 / 48, 5 / 48,
-         3 / 48, 1 / 48, 3 / 48, 5 / 48, 3 / 48, 1 / 48)
+        (1, 0, 0.14583333333333334),
+        (2, 0, 0.10416666666666667),
+        (-2, 1, 0.0625),
+        (-1, 1, 0.10416666666666667),
+        (0, 1, 0.14583333333333334),
+        (1, 1, 0.10416666666666667),
+        (2, 1, 0.0625),
+        (-2, 2, 0.020833333333333332),
+        (-1, 2, 0.0625),
+        (0, 2, 0.10416666666666667),
+        (1, 2, 0.0625),
+        (2, 2, 0.020833333333333332)
     )
     STUCKI = (
-        (1, 2, -2, -1, 0, 1, 2, -2, -1, 0, 1, 2),
-        (0, 0,  1,  1, 1, 1, 1,  2,  2, 2, 2, 2),
-        (8 / 48, 4 / 48, 2 / 48, 4 / 48, 8 / 48, 4 / 48,
-         2 / 48, 1 / 48, 2 / 48, 4 / 48, 2 / 48, 1 / 48)
+        (1, 0, 0.16666666666666666),
+        (2, 0, 0.08333333333333333),
+        (-2, 1, 0.041666666666666664),
+        (-1, 1, 0.08333333333333333),
+        (0, 1, 0.16666666666666666),
+        (1, 1, 0.08333333333333333),
+        (2, 1, 0.041666666666666664),
+        (-2, 2, 0.020833333333333332),
+        (-1, 2, 0.041666666666666664),
+        (0, 2, 0.08333333333333333),
+        (1, 2, 0.041666666666666664),
+        (2, 2, 0.020833333333333332)
     )
     SIERRA = (
-        (1, 2, -2, -1, 0, 1, 2, -1, 0, 1),
-        (0, 0,  1,  1, 1, 1, 1,  2, 2, 2),
-        (5 / 32, 3 / 32, 2 / 32, 4 / 32, 5 / 32,
-         4 / 32, 2 / 32, 2 / 32, 3 / 32, 2 / 32)
+        (1, 0, 0.15625),
+        (2, 0, 0.09375),
+        (-2, 1, 0.0625),
+        (-1, 1, 0.125),
+        (0, 1, 0.15625),
+        (1, 1, 0.125),
+        (2, 1, 0.0625),
+        (-1, 2, 0.0625),
+        (0, 2, 0.09375),
+        (1, 2, 0.0625)
     )
     TWO_ROW_SIERRA = (
-        (1, 2, -2, -1, 0, 1, 2),
-        (0, 0,  1,  1, 1, 1, 1),
-        (4 / 16, 3 / 16, 1 / 16, 2 / 16, 3 / 16, 2 / 16, 1 / 16)
+        (1, 0, 0.25),
+        (2, 0, 0.1875),
+        (-2, 1, 0.0625),
+        (-1, 1, 0.125),
+        (0, 1, 0.1875),
+        (1, 1, 0.125),
+        (2, 1, 0.0625)
     )
     SIERRA_LITE = (
-        (1, -1, 0),
-        (0,  1,  1),
-        (2 / 4, 1 / 4, 1 / 4)
+        (1, 0, 0.5),
+        (-1, 1, 0.25),
+        (0, 1, 0.25)
     )
 
     @property
-    def T(self):
-        xs, ys, coefficients = self.value
-        return ys, xs, coefficients
+    @lru_cache(maxsize=1)
+    def hysteresis(self):
+        """
+        Return the matrix rotated 180 degrees for hysteresis filter preturbation.
+        Calculate the matrix once retrieve from the cache on subsequent calls.
+        """
+        return tuple((-i, -j, c) for i, j, c in self.value)
 
 
 def atkinson(image, bit_depth):
@@ -114,12 +154,12 @@ def sierra_lite(image, bit_depth):
 
 
 @cfunc('float64(float64, int64)')
-def quantize_uniform(color, palette_size):
+def quantize_uniform(color: float, palette_size: float) -> int:
     return round(color / 255.0 * palette_size) / palette_size * 255.0
 
 
 @njit
-def dither(image, bit_depth, matrix):
+def dither(image: np.ndarray, bit_depth: int, matrix: DiffusionMatrix) -> np.ndarray:
     height, width, channels = image.shape
     palette_size = (1 << bit_depth) - 1
     for y in range(height):
@@ -129,7 +169,7 @@ def dither(image, bit_depth, matrix):
                 quant_color = quantize_uniform(color, palette_size)
                 image[y, x, c] = quant_color
                 quant_error = color - quant_color
-                for u, v, k in zip(*matrix):
+                for u, v, k in matrix:
                     if 0 <= x + u < width and 0 <= y + v < height:
                         image[y + v, x + u, c] += quant_error * k
     return image
