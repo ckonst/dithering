@@ -5,9 +5,6 @@ Created on Fri Feb 25 15:12:44 2022
 @author: Christian Konstantinov
 """
 
-# TODO: Add alpha channel support
-# TODO: Add filter preturbation
-
 from functools import lru_cache
 from enum import Enum
 from typing import Tuple
@@ -146,39 +143,39 @@ class DiffusionMatrix(Enum):
 
 
 def atkinson(image, bit_depth, serpentine: bool = False):
-    return dither(image, bit_depth, DiffusionMatrix.ATKINSON.bidirectional)
+    return dither(image, bit_depth, DiffusionMatrix.ATKINSON.bidirectional, serpentine)
 
 
 def burkes(image, bit_depth, serpentine: bool = False):
-    return dither(image, bit_depth, DiffusionMatrix.BURKES.bidirectional)
+    return dither(image, bit_depth, DiffusionMatrix.BURKES.bidirectional, serpentine)
 
 
 def floyd_steinberg(image, bit_depth, serpentine: bool = False):
-    return dither(image, bit_depth, DiffusionMatrix.FLOYD_STEINBERG.bidirectional)
+    return dither(image, bit_depth, DiffusionMatrix.FLOYD_STEINBERG.bidirectional, serpentine)
 
 
 def false_floyd_steinberg(image, bit_depth, serpentine: bool = False):
-    return dither(image, bit_depth, DiffusionMatrix.FALSE_FLOYD_STEINBERG.bidirectional)
+    return dither(image, bit_depth, DiffusionMatrix.FALSE_FLOYD_STEINBERG.bidirectional, serpentine)
 
 
 def jarvis_judice_ninke(image, bit_depth, serpentine: bool = False):
-    return dither(image, bit_depth, DiffusionMatrix.JARVIS_JUDICE_NINKE.bidirectional)
+    return dither(image, bit_depth, DiffusionMatrix.JARVIS_JUDICE_NINKE.bidirectional, serpentine)
 
 
 def stucki(image, bit_depth, serpentine: bool = False):
-    return dither(image, bit_depth, DiffusionMatrix.STUCKI.bidirectional)
+    return dither(image, bit_depth, DiffusionMatrix.STUCKI.bidirectional, serpentine)
 
 
 def sierra(image, bit_depth, serpentine: bool = False):
-    return dither(image, bit_depth, DiffusionMatrix.SIERRA.bidirectional)
+    return dither(image, bit_depth, DiffusionMatrix.SIERRA.bidirectional, serpentine)
 
 
 def two_row_sierra(image, bit_depth, serpentine: bool = False):
-    return dither(image, bit_depth, DiffusionMatrix.TWO_ROW_SIERRA.bidirectional)
+    return dither(image, bit_depth, DiffusionMatrix.TWO_ROW_SIERRA.bidirectional, serpentine)
 
 
 def sierra_lite(image, bit_depth, serpentine: bool = False):
-    return dither(image, bit_depth, DiffusionMatrix.SIERRA_LITE.bidirectional)
+    return dither(image, bit_depth, DiffusionMatrix.SIERRA_LITE.bidirectional, serpentine)
 
 
 def lau_arce_gallagher(image, bit_depth, hysteresis_constant: float = 1, threshold: float = 0.0, serpentine: bool = False):
