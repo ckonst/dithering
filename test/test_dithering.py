@@ -37,7 +37,7 @@ class TestDithering(unittest.TestCase):
     def verify_palette_size(self, image, bit_depth, num_channels=3) -> bool:
         palette_size = 1
         for i in range(num_channels):
-            print(np.unique(image[:, :, i]))
+            #print(np.unique(image[:, :, i]))
             print(np.unique(image[:, :, i]).size)
             palette_size *= np.unique(image[:, :, i]).size
         expected_palette_size = (1 << bit_depth) ** num_channels
@@ -53,7 +53,15 @@ class TestDithering(unittest.TestCase):
         self.assertTrue(self.verify_palette_size(output_data, bit_depth))
 
         output_data = self.get_dithered_image(
+            image, bit_depth, floyd_steinberg, serpentine=True)
+        self.assertTrue(self.verify_palette_size(output_data, bit_depth))
+
+        output_data = self.get_dithered_image(
             image, bit_depth, lau_arce_gallagher,  hysteresis_constant=1/2.5)
+        self.assertTrue(self.verify_palette_size(output_data, bit_depth))
+
+        output_data = self.get_dithered_image(
+            image, bit_depth, lau_arce_gallagher,  hysteresis_constant=1/2.5, serpentine=True)
         self.assertTrue(self.verify_palette_size(output_data, bit_depth))
 
     def test_visual(self):
@@ -96,7 +104,7 @@ class TestDithering(unittest.TestCase):
         output_path = './images/smile_green_noise_dithered_1_bit.png'
         image = self.load_image(input_path)
         dithered_image = self.get_dithered_image(
-            image, 1, lau_arce_gallagher, hysteresis_constant=1/2.5)
+            image, 1, lau_arce_gallagher, hysteresis_constant=1)
         self.save_image(Image.fromarray(dithered_image), output_path)
 
         input_path = './images/hatsune_miku.png'
