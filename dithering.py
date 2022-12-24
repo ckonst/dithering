@@ -13,6 +13,7 @@ import numpy as np
 from numba import njit, cfunc
 from PIL import Image
 
+#TODO: refactor dithering functions to a single one, utlize more of numba's cfuncs. 
 
 class DiffusionMatrix(Enum):
     """Matrices/Kernels for Error Diffusion, the T property holds the transpose of each matrix.
@@ -115,9 +116,9 @@ class DiffusionMatrix(Enum):
 
     @property
     @lru_cache(maxsize=1)
-    def hysteresis_reverse(self):
+    def reverse_hysteresis(self):
         """
-        Return the matrix rotated 180 degrees for hysteresis filter preturbation.
+        Return the matrix rotated 90 degrees for hysteresis filter preturbation.
         Calculate the matrix once retrieve from the cache on subsequent calls.
         """
         return tuple((x, -y, c) for x, y, c in self.value)
@@ -139,91 +140,115 @@ class DiffusionMatrix(Enum):
     @property
     @lru_cache(maxsize=1)
     def bidirectional_hysteresis(self):
-        return (self.hysteresis, self.hysteresis_reverse)
+        return (self.hysteresis, self.reverse_hysteresis)
 
 
-def atkinson(image, bit_depth, serpentine: bool = False):
-    return dither(image, bit_depth, DiffusionMatrix.ATKINSON.bidirectional, serpentine)
+def atkinson(image: np.ndarray, bit_depth, serpentine: bool = False) -> np.ndarray:
+    return dither(image, DiffusionMatrix.ATKINSON, bit_depth, serpentine)
 
 
-def burkes(image, bit_depth, serpentine: bool = False):
-    return dither(image, bit_depth, DiffusionMatrix.BURKES.bidirectional, serpentine)
+def burkes(image: np.ndarray, bit_depth: int = 1, serpentine: bool = False) -> np.ndarray:
+    return dither(image, DiffusionMatrix.BURKES, bit_depth, serpentine)
 
 
-def floyd_steinberg(image, bit_depth, serpentine: bool = False):
-    return dither(image, bit_depth, DiffusionMatrix.FLOYD_STEINBERG.bidirectional, serpentine)
+def floyd_steinberg(image: np.ndarray, bit_depth: int = 1, serpentine: bool = False) -> np.ndarray:
+    return dither(image, DiffusionMatrix.FLOYD_STEINBERG, bit_depth, serpentine)
 
 
-def false_floyd_steinberg(image, bit_depth, serpentine: bool = False):
-    return dither(image, bit_depth, DiffusionMatrix.FALSE_FLOYD_STEINBERG.bidirectional, serpentine)
+def false_floyd_steinberg(image: np.ndarray, bit_depth: int = 1, serpentine: bool = False) -> np.ndarray:
+    return dither(image, DiffusionMatrix.FALSE_FLOYD_STEINBERG, bit_depth, serpentine)
 
 
-def jarvis_judice_ninke(image, bit_depth, serpentine: bool = False):
-    return dither(image, bit_depth, DiffusionMatrix.JARVIS_JUDICE_NINKE.bidirectional, serpentine)
+def jarvis_judice_ninke(image: np.ndarray, bit_depth: int = 1, serpentine: bool = False) -> np.ndarray:
+    return dither(image, DiffusionMatrix.JARVIS_JUDICE_NINKE, bit_depth, serpentine)
 
 
-def stucki(image, bit_depth, serpentine: bool = False):
-    return dither(image, bit_depth, DiffusionMatrix.STUCKI.bidirectional, serpentine)
+def stucki(image: np.ndarray, bit_depth: int = 1, serpentine: bool = False) -> np.ndarray:
+    return dither(image, DiffusionMatrix.STUCKI, bit_depth, serpentine)
 
 
-def sierra(image, bit_depth, serpentine: bool = False):
-    return dither(image, bit_depth, DiffusionMatrix.SIERRA.bidirectional, serpentine)
+def sierra(image: np.ndarray, bit_depth: int = 1, serpentine: bool = False) -> np.ndarray:
+    return dither(image, DiffusionMatrix.SIERRA, bit_depth, serpentine)
 
 
-def two_row_sierra(image, bit_depth, serpentine: bool = False):
-    return dither(image, bit_depth, DiffusionMatrix.TWO_ROW_SIERRA.bidirectional, serpentine)
+def two_row_sierra(image: np.ndarray, bit_depth: int = 1, serpentine: bool = False) -> np.ndarray:
+    return dither(image, DiffusionMatrix.TWO_ROW_SIERRA, bit_depth, serpentine)
 
 
-def sierra_lite(image, bit_depth, serpentine: bool = False):
-    return dither(image, bit_depth, DiffusionMatrix.SIERRA_LITE.bidirectional, serpentine)
+def sierra_lite(image: np.ndarray, bit_depth: int = 1, serpentine: bool = False) -> np.ndarray:
+    return dither(image, DiffusionMatrix.SIERRA_LITE, bit_depth, serpentine)
 
 
-def lau_arce_gallagher(image, bit_depth, hysteresis_constant: float = 1, threshold: float = 0.0, serpentine: bool = False):
+def lau_arce_gallagher(
+    image: np.ndarray,
+    hysteresis_constant: float = 1,
+    threshold: float = 0.0,
+    bit_depth: int = 1,
+    serpentine: bool = False
+) -> np.ndarray:
     return green_noise_halftone(
-        image, bit_depth, (*DiffusionMatrix.FLOYD_STEINBERG.bidirectional_hysteresis,
-                           *DiffusionMatrix.STUCKI.bidirectional), hysteresis_constant, threshold, serpentine
+        image, bit_depth=bit_depth, H=hysteresis_constant,
+        threshold=threshold, serpentine=serpentine
     )
 
 
-@cfunc('boolean(int64, int64, int64, int64)')
-def check_bounds(x, y, width, height):
-    return 0 <= x < width and 0 <= y < height
+def dither(
+    image: np.ndarray,
+    matrix: DiffusionMatrix = DiffusionMatrix.FLOYD_STEINBERG,
+    bit_depth: int = 1,
+    serpentine: bool = False
+) -> np.ndarray:
+    return _serpentine_dither(image, matrix.bidirectional, bit_depth) if serpentine else _raster_scan_dither(image, matrix.value, bit_depth)
 
 
-@cfunc('float64(float64)')
-def clamp(color):
-    return max(0, min(color, 255))
-
-
-@cfunc('float64(float64, float64)')
-def gamma_correct(color: float, gamma: float):
-    return color / 12.92 if color < 0.04045 else ((color + 0.055) / 1.055) ** gamma
-
-
-@cfunc('float64(float64, int64)')
-def quantize_uniform_linear(color: float, palette_size: float) -> int:
-    return round(gamma_correct(color / 255.0, 2.4) * palette_size) / palette_size * 255.0
-
-
-@cfunc('float64(float64, int64)')
-def quantize_uniform(color: float, palette_size: float) -> int:
-    return round(color / 255.0 * palette_size) / palette_size * 255.0
+def green_noise_halftone(
+    image: np.ndarray,
+    diffusion_matrix: DiffusionMatrix = DiffusionMatrix.STUCKI,
+    hysteresis_matrix: DiffusionMatrix = DiffusionMatrix.FLOYD_STEINBERG,
+    H: int = 1.0,
+    threshold: float = 0.0,
+    bit_depth: int = 1,
+    serpentine: bool = False
+) -> np.ndarray:
+    return _serpentine_green_noise_halftone(
+        image, diffusion_matrix.bidirectional, hysteresis_matrix.bidirectional_hysteresis,
+        H, threshold, bit_depth
+    ) if serpentine else _raster_scan_green_noise_halftone(
+        image, diffusion_matrix.value, hysteresis_matrix.hysteresis,
+        H, threshold, bit_depth
+    )
 
 
 @njit
-def dither(image: np.ndarray, bit_depth: int, matrix: Tuple, serpentine: bool) -> np.ndarray:
+def _raster_scan_dither(image: np.ndarray, matrix: Tuple, bit_depth: int) -> np.ndarray:
+    height, width, channels = image.shape
+    palette_size = (1 << bit_depth) - 1
+
+    for y in range(height):
+        for x in range(width):
+            for c in range(channels):
+                color = image[y, x, c]
+                quant_color = quantize_uniform(color, palette_size)
+                image[y, x, c] = clamp(quant_color)
+                quant_error = color - quant_color
+                for u, v, k in matrix:
+                    if check_bounds(x + u, y + v, width, height):
+                        image[y + v, x + u, c] += quant_error * k
+    return image
+
+
+@njit
+def _serpentine_dither(image: np.ndarray, matrix: Tuple, bit_depth: int) -> np.ndarray:
     height, width, channels = image.shape
     palette_size = (1 << bit_depth) - 1
 
     diffusion, diffusion_reverse = matrix
     diffusion_matrices = (diffusion, diffusion_reverse)
-
-    divisor = 2 if serpentine else 1
-    range_args = ((0, width, 1), (width, 0, -1))
+    direction = ((0, width, 1), (width, 0, -1))
 
     for y in range(height):
-        aim = y % divisor
-        for x in range(*range_args[aim]):
+        aim = y % 2
+        for x in range(*direction[aim]):
             for c in range(channels):
                 color = image[y, x, c]
                 quant_color = quantize_uniform(color, palette_size)
@@ -236,20 +261,38 @@ def dither(image: np.ndarray, bit_depth: int, matrix: Tuple, serpentine: bool) -
 
 
 @njit
-def green_noise_halftone(image: np.ndarray, bit_depth: int, matrix: Tuple, H: int, threshold: float, serpentine: bool) -> np.ndarray:
+def _raster_scan_green_noise_halftone(image: np.ndarray, diffusion_matrix: Tuple, hysteresis_matrix: Tuple, H: int, threshold: float, bit_depth: int) -> np.ndarray:
     height, width, channels = image.shape
     palette_size = (1 << bit_depth) - 1
 
-    hysteresis, hysteresis_reverse, diffusion, diffusion_reverse = matrix
-    hysteresis_matrices = hysteresis, hysteresis_reverse
-    diffusion_matrices = diffusion, diffusion_reverse
+    for y in range(height):
+        for x in range(width):
+            for c in range(channels):
+                input_color = image[y, x, c]
+                hysteresis_color = input_color
+                for u, v, k in hysteresis_matrix:
+                    if check_bounds(x + u, y + v, width, height) and image[y + v, x + u, c] >= 255.0 * threshold:
+                        hysteresis_color += H * k * image[y + v, x + u, c]
+                quant_color = quantize_uniform_linear(
+                    hysteresis_color, palette_size)
+                image[y, x, c] = clamp(quant_color)
+                quant_error = input_color - quant_color
+                for u, v, k in diffusion_matrix:
+                    if check_bounds(x + u, y + v, width, height):
+                        image[y + v, x + u, c] += quant_error * k
+    return image
 
-    divisor = 2 if serpentine else 1
-    range_args = ((0, width, 1), (width, 0, -1))
+
+@njit
+def _serpentine_green_noise_halftone(image: np.ndarray, diffusion_matrices: Tuple, hysteresis_matrices: Tuple, H: int, threshold: float, bit_depth: int) -> np.ndarray:
+    height, width, channels = image.shape
+    palette_size = (1 << bit_depth) - 1
+
+    direction = ((0, width, 1), (width, 0, -1))
 
     for y in range(height):
-        aim = y % divisor
-        for x in range(*range_args[aim]):
+        aim = y % 2
+        for x in range(*direction[aim]):
             for c in range(channels):
                 input_color = image[y, x, c]
                 hysteresis_color = input_color
@@ -264,3 +307,28 @@ def green_noise_halftone(image: np.ndarray, bit_depth: int, matrix: Tuple, H: in
                     if check_bounds(x + u, y + v, width, height):
                         image[y + v, x + u, c] += quant_error * k
     return image
+
+
+@cfunc('boolean(int64, int64, int64, int64)')
+def check_bounds(x: int, y: int, width: int, height: int) -> bool:
+    return 0 <= x < width and 0 <= y < height
+
+
+@cfunc('float64(float64)')
+def clamp(color: float) -> float:
+    return max(0, min(color, 255))
+
+
+@cfunc('float64(float64, float64)')
+def gamma_correct(color: float, gamma: float) -> float:
+    return color / 12.92 if color < 0.04045 else ((color + 0.055) / 1.055) ** gamma
+
+
+@cfunc('float64(float64, int64)')
+def quantize_uniform_linear(color: float, palette_size: float) -> int:
+    return round(gamma_correct(color / 255.0, 2.4) * palette_size) / palette_size * 255.0
+
+
+@cfunc('float64(float64, int64)')
+def quantize_uniform(color: float, palette_size: float) -> int:
+    return round(color / 255.0 * palette_size) / palette_size * 255.0

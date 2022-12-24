@@ -29,9 +29,9 @@ class TestDithering(unittest.TestCase):
         image.save(output_path)
         print(f'Saved image with {output_path = }')
 
-    def get_dithered_image(self, image, bit_depth, func, **kwargs):
+    def get_dithered_image(self, image, func, **kwargs):
         input_data = np.array(image).astype(np.float32)
-        output_data = func(input_data, bit_depth, **kwargs).astype(np.uint8)
+        output_data = func(input_data, **kwargs).astype(np.uint8)
         return output_data
 
     def verify_palette_size(self, image, bit_depth, num_channels=3) -> bool:
@@ -49,44 +49,44 @@ class TestDithering(unittest.TestCase):
         image = self.load_image(input_path)
         bit_depth = 2
         output_data = self.get_dithered_image(
-            image, bit_depth, floyd_steinberg)
+            image, floyd_steinberg, bit_depth=bit_depth)
         self.assertTrue(self.verify_palette_size(output_data, bit_depth))
 
         output_data = self.get_dithered_image(
-            image, bit_depth, floyd_steinberg, serpentine=True)
+            image, floyd_steinberg, bit_depth=bit_depth, serpentine=True)
         self.assertTrue(self.verify_palette_size(output_data, bit_depth))
 
         output_data = self.get_dithered_image(
-            image, bit_depth, lau_arce_gallagher,  hysteresis_constant=1/2.5)
+            image, lau_arce_gallagher, bit_depth=bit_depth, hysteresis_constant=1/2.5)
         self.assertTrue(self.verify_palette_size(output_data, bit_depth))
 
         output_data = self.get_dithered_image(
-            image, bit_depth, lau_arce_gallagher,  hysteresis_constant=1/2.5, serpentine=True)
+            image, lau_arce_gallagher, bit_depth=bit_depth, hysteresis_constant=1/2.5, serpentine=True)
         self.assertTrue(self.verify_palette_size(output_data, bit_depth))
 
     def test_visual(self):
         input_path = './images/hatsune_miku.png'
         output_path = './images/hatsune_miku_dithered_2_bits.png'
         image = self.load_image(input_path)
-        dithered_image = self.get_dithered_image(image, 2, floyd_steinberg)
+        dithered_image = self.get_dithered_image(image, floyd_steinberg, bit_depth=2)
         self.save_image(Image.fromarray(dithered_image), output_path)
 
         input_path = './images/kuudere.png'
         output_path = './images/kuudere_dithered_2_bits.png'
         image = self.load_image(input_path)
-        dithered_image = self.get_dithered_image(image, 2, floyd_steinberg)
+        dithered_image = self.get_dithered_image(image, floyd_steinberg, bit_depth=2)
         self.save_image(Image.fromarray(dithered_image), output_path)
 
         input_path = './images/smile.png'
         output_path = './images/smile_dithered_1_bit.png'
         image = self.load_image(input_path)
-        dithered_image = self.get_dithered_image(image, 1, floyd_steinberg)
+        dithered_image = self.get_dithered_image(image, floyd_steinberg, bit_depth=1)
         self.save_image(Image.fromarray(dithered_image), output_path)
 
         input_path = './images/キャンディーポット.png'
         output_path = './images/キャンディーポット_dithered_1_bit.png'
         image = self.load_image(input_path)
-        dithered_image = self.get_dithered_image(image, 1, sierra)
+        dithered_image = self.get_dithered_image(image, sierra, bit_depth=1)
         self.save_image(Image.fromarray(dithered_image), output_path)
 
     def test_hysteresis_generation(self):
@@ -104,14 +104,14 @@ class TestDithering(unittest.TestCase):
         output_path = './images/smile_green_noise_dithered_1_bit.png'
         image = self.load_image(input_path)
         dithered_image = self.get_dithered_image(
-            image, 1, lau_arce_gallagher, hysteresis_constant=1)
+            image, lau_arce_gallagher, hysteresis_constant=1, bit_depth=1)
         self.save_image(Image.fromarray(dithered_image), output_path)
 
         input_path = './images/hatsune_miku.png'
         output_path = './images/hatsune_miku_green_noise_dithered_2_bits.png'
         image = self.load_image(input_path)
         dithered_image = self.get_dithered_image(
-            image, 2, lau_arce_gallagher, hysteresis_constant=1/2.5)
+            image, lau_arce_gallagher, hysteresis_constant=1/2.5, bit_depth=2)
         self.save_image(Image.fromarray(dithered_image), output_path)
 
 
