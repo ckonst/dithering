@@ -37,7 +37,6 @@ class TestDithering(unittest.TestCase):
     def verify_palette_size(self, image, bit_depth, num_channels=3) -> bool:
         palette_size = 1
         for i in range(num_channels):
-            #print(np.unique(image[:, :, i]))
             print(np.unique(image[:, :, i]).size)
             palette_size *= np.unique(image[:, :, i]).size
         expected_palette_size = (1 << bit_depth) ** num_channels
@@ -48,18 +47,22 @@ class TestDithering(unittest.TestCase):
         input_path = './images/hatsune_miku.png'
         image = self.load_image(input_path)
         bit_depth = 2
+        print('floyd steinberg:')
         output_data = self.get_dithered_image(
             image, floyd_steinberg, bit_depth=bit_depth)
         self.assertTrue(self.verify_palette_size(output_data, bit_depth))
 
+        print('serpentine floyd steinberg:')
         output_data = self.get_dithered_image(
             image, floyd_steinberg, bit_depth=bit_depth, serpentine=True)
         self.assertTrue(self.verify_palette_size(output_data, bit_depth))
 
+        print('green noise:')
         output_data = self.get_dithered_image(
             image, lau_arce_gallagher, bit_depth=bit_depth, hysteresis_constant=1/2.5)
         self.assertTrue(self.verify_palette_size(output_data, bit_depth))
 
+        print('serpentine green noise:')
         output_data = self.get_dithered_image(
             image, lau_arce_gallagher, bit_depth=bit_depth, hysteresis_constant=1/2.5, serpentine=True)
         self.assertTrue(self.verify_palette_size(output_data, bit_depth))
